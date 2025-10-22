@@ -1,1 +1,452 @@
+# index.html
+
+```html
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>ADIVINA EL JUGADOR</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- PDF.js (para mostrar la portada directamente desde depor.pdf) -->
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.js"></script>
+  <script>
+    // Configurar el worker de PDF.js
+    window.addEventListener('DOMContentLoaded', () => {
+      if (window.pdfjsLib) {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.js';
+      }
+    });
+  </script>
+</head>
+<body>
+  <div id="app" class="app">
+    <!-- Pantalla: Portada (se renderiza la pág 1 del PDF como imagen de fondo) -->
+    <section id="screen-cover" class="screen screen-cover active" aria-label="Portada">
+      <canvas id="cover-canvas" class="cover-canvas" aria-hidden="true"></canvas>
+      <!-- Hotspot clicable (invisible) sobre el botón ¡COMENZAR! de la portada -->
+      <button id="btn-start" class="hotspot-start" aria-label="Comenzar" title="¡COMENZAR!"></button>
+    </section>
+
+    <!-- Pantalla: Pregunta -->
+    <section id="screen-question" class="screen screen-question" aria-live="polite" aria-label="Pregunta" hidden>
+      <header class="hud">
+        <div class="timer-group">
+          <div class="timer-single">
+            <span class="label">Pregunta</span>
+            <span id="time-question" class="time">00:10</span>
+          </div>
+          <div class="timer-total">
+            <span class="label">Total</span>
+            <span id="time-total" class="time">02:00</span>
+          </div>
+        </div>
+        <div class="score">
+          <span class="label">Puntos</span>
+          <span id="score">0</span>
+        </div>
+      </header>
+
+      <main class="q-wrap">
+        <p id="question-text" class="question">
+          NACIDO EN VENEZUELA, AYUDÉ AL DEPOR CON MIS 9 GOLES EN LAS TEMPORADAS QUE VESTÍ LA BLANQUIAZUL
+        </p>
+        <ul class="answers" role="list">
+          <li><button class="answer" data-correct="false">Miku</button></li>
+          <li><button class="answer" data-correct="false">Celso Borges</button></li>
+          <li><button class="answer" data-correct="true">Christian Santos</button></li>
+          <li><button class="answer" data-correct="false">Marlos Moreno</button></li>
+        </ul>
+      </main>
+    </section>
+
+    <!-- Pantalla: Fin / Ranking -->
+    <section id="screen-end" class="screen screen-end" aria-label="Fin de partida" hidden>
+      <div class="end-card">
+        <h2 class="end-title">EL TIEMPO DE TU PARTIDA SE HA AGOTADO</h2>
+        <p class="end-sub">HAS CONSEGUIDO</p>
+        <div class="end-score" id="final-score">0</div>
+
+        <form id="save-form" class="save-form" autocomplete="off">
+          <label for="username" class="label">USUARIO</label>
+          <input id="username" class="input" type="text" maxlength="18" placeholder="Indica tu nombre de usuario" required />
+          <button class="btn" type="submit">Guardar y ver ranking</button>
+        </form>
+
+        <div class="ranking">
+          <h3>Ranking</h3>
+          <ol id="ranking-list" class="ranking-list"></ol>
+        </div>
+
+        <button id="btn-restart" class="btn btn-restart">NUEVA PARTIDA</button>
+      </div>
+    </section>
+  </div>
+
+  <script src="script.js" defer></script>
+</body>
+</html>
+```
+
+---
+
+# style.css
+
+```css
+/* Reset básico y tipografía */
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  background: #0a0a0a;
+  color: #ffffff;
+}
+
+.app { min-height: 100%; position: relative; }
+.screen { width: 100%; min-height: 100svh; display: none; }
+.screen.active { display: block; }
+
+/* Portada (PDF de fondo) */
+.cover-canvas { width: 100%; height: auto; display: block; }
+
+/* Hotspot sobre el botón ¡COMENZAR! de la portada
+   - Por defecto, lo colocamos centrado abajo. Ajusta las variables
+     si quieres afinar la posición exacta sobre el botón del PDF. */
+:root {
+  --hotspot-w: 70vw;   /* ancho del área clicable */
+  --hotspot-h: 12vh;   /* alto del área clicable */
+  --hotspot-bottom: 8vh; /* separación desde la parte inferior */
+}
+.hotspot-start {
+  position: absolute;
+  left: 50%; transform: translateX(-50%);
+  width: var(--hotspot-w);
+  height: var(--hotspot-h);
+  bottom: var(--hotspot-bottom);
+  background: rgba(255,255,255,0.0); /* invisible */
+  border: none; outline: none; cursor: pointer;
+}
+.hotspot-start:focus-visible { outline: 3px dashed #ffd000; outline-offset: 4px; }
+
+/* HUD pregunta */
+.screen-question { display: grid; grid-template-rows: auto 1fr; min-height: 100svh; }
+.hud {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 16px; gap: 12px; background: #121212; border-bottom: 1px solid #222;
+}
+.timer-group { display: flex; gap: 16px; align-items: center; }
+.timer-single, .timer-total { display: grid; gap: 2px; }
+.label { font-size: 12px; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.04em; }
+.time { font-variant-numeric: tabular-nums; font-weight: 700; }
+.score { display: grid; gap: 2px; text-align: right; }
+
+.q-wrap { padding: 20px 16px 28px; display: grid; gap: 18px; align-content: start; }
+.question {
+  background: #191919; border: 1px solid #272727; border-radius: 14px;
+  padding: 14px 16px; line-height: 1.35; font-weight: 600;
+}
+.answers { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.answer {
+  width: 100%; text-align: left; border: 1px solid #2a2a2a; border-radius: 12px;
+  background: #141414; color: #fff; padding: 14px 16px; font-size: 16px; font-weight: 600;
+  cursor: pointer; transition: transform .05s ease, border-color .15s ease, background .15s ease;
+}
+.answer:active { transform: scale(0.99); }
+.answer.correct { background: #103d16; border-color: #1fd46b; }
+.answer.wrong { background: #3a0b0b; border-color: #ff4d4d; }
+.answer.disabled { pointer-events: none; opacity: 0.9; }
+
+/* Fin */
+.screen-end { display: grid; place-items: center; padding: 24px 16px; }
+.end-card {
+  width: min(560px, 100%);
+  display: grid; gap: 14px; background: #121212; border: 1px solid #232323;
+  border-radius: 18px; padding: 18px;
+}
+.end-title { margin: 0; font-size: 18px; text-align: center; }
+.end-sub { margin: 0; opacity: 0.9; text-align: center; }
+.end-score { font-size: 56px; line-height: 1; text-align: center; font-weight: 800; }
+
+.save-form { display: grid; gap: 10px; margin-top: 4px; }
+.input {
+  width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid #2a2a2a;
+  background: #0f0f0f; color: #fff; font-size: 16px;
+}
+.btn {
+  border: none; border-radius: 12px; padding: 12px 14px; font-weight: 700; cursor: pointer;
+  background: #ffd000; color: #111; transition: filter .15s ease; text-transform: uppercase;
+}
+.btn:hover { filter: brightness(1.03); }
+.btn:active { filter: brightness(0.98); }
+.btn-restart { background: #6D32FF; color: #fff; }
+
+.ranking { margin-top: 8px; }
+.ranking-list { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.ranking-list li { padding: 6px 8px; background: #0f0f0f; border: 1px solid #232323; border-radius: 10px; }
+
+/* Mejoras táctiles */
+@media (hover: none) {
+  .answer:focus { outline: none; }
+}
+```
+
+---
+
+# script.js
+
+```js
+// ============ Utilidades de tiempo y UI ============
+const $ = (sel, el = document) => el.querySelector(sel);
+const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
+const fmt = (n) => String(n).padStart(2, '0');
+const toMMSS = (sec) => `${fmt(Math.floor(sec/60))}:${fmt(Math.floor(sec%60))}`;
+
+// ============ Estado del juego ============
+const STATE = {
+  totalTime: 120,      // 2 minutos total
+  perQuestionTime: 10, // 10 segundos por pregunta
+  score: 0,
+  timers: { totalId: null, qId: null },
+  currentQ: 0,
+  questions: [
+    {
+      text: 'NACIDO EN VENEZUELA, AYUDÉ AL DEPOR CON MIS 9 GOLES EN LAS TEMPORADAS QUE VESTÍ LA BLANQUIAZUL',
+      answers: [
+        { text: 'Miku', correct: false },
+        { text: 'Celso Borges', correct: false },
+        { text: 'Christian Santos', correct: true },
+        { text: 'Marlos Moreno', correct: false },
+      ],
+    },
+    // Aquí podrás añadir más preguntas después
+  ],
+};
+
+// ============ Referencias de pantalla ============
+const screenCover   = $('#screen-cover');
+const screenQuestion= $('#screen-question');
+const screenEnd     = $('#screen-end');
+
+const timeQEl   = $('#time-question');
+const timeTotEl = $('#time-total');
+const scoreEl   = $('#score');
+const qTextEl   = $('#question-text');
+const answersEl = $('.answers');
+
+const finalScoreEl = $('#final-score');
+const saveForm = $('#save-form');
+const rankingList = $('#ranking-list');
+
+// ============ Portada con PDF.js ============
+async function renderCoverFromPDF() {
+  try {
+    if (!window.pdfjsLib) return; // si por cualquier motivo no carga la librería, continuamos igualmente
+    const loadingTask = pdfjsLib.getDocument('assets/depor.pdf');
+    const pdf = await loadingTask.promise;
+    const page = await pdf.getPage(1); // primera página como portada
+
+    const canvas = document.getElementById('cover-canvas');
+    const ctx = canvas.getContext('2d');
+
+    // Escalar a ancho de viewport
+    const viewport = page.getViewport({ scale: 1 });
+    const devicePixelRatio = window.devicePixelRatio || 1;
+    const targetWidth = document.documentElement.clientWidth * devicePixelRatio;
+    const scale = targetWidth / viewport.width;
+    const scaledViewport = page.getViewport({ scale });
+
+    canvas.width = Math.floor(scaledViewport.width);
+    canvas.height = Math.floor(scaledViewport.height);
+
+    await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
+  } catch (err) {
+    console.error('Error renderizando PDF:', err);
+  }
+}
+
+// ============ Cambio de pantallas ============
+function show(el) {
+  for (const s of $$('.screen')) { s.hidden = true; s.classList.remove('active'); }
+  el.hidden = false; el.classList.add('active');
+}
+
+// ============ Timers ============
+function startTotalTimer() {
+  timeTotEl.textContent = toMMSS(STATE.totalTime);
+  STATE.timers.totalId = setInterval(() => {
+    STATE.totalTime -= 1;
+    timeTotEl.textContent = toMMSS(Math.max(STATE.totalTime, 0));
+    if (STATE.totalTime <= 0) {
+      clearInterval(STATE.timers.totalId);
+      endGame();
+    }
+  }, 1000);
+}
+
+function startQuestionTimer(onExpire) {
+  let left = STATE.perQuestionTime;
+  timeQEl.textContent = toMMSS(left);
+  STATE.timers.qId = setInterval(() => {
+    left -= 1;
+    timeQEl.textContent = toMMSS(Math.max(left, 0));
+    if (left <= 0) {
+      clearInterval(STATE.timers.qId);
+      onExpire?.();
+    }
+  }, 1000);
+}
+
+function stopQuestionTimer() {
+  if (STATE.timers.qId) clearInterval(STATE.timers.qId);
+  STATE.timers.qId = null;
+}
+
+// ============ Lógica de preguntas ============
+function loadQuestion(i) {
+  const q = STATE.questions[i];
+  if (!q) return endGame();
+
+  qTextEl.textContent = q.text;
+  answersEl.innerHTML = '';
+  q.answers.forEach((a) => {
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.className = 'answer';
+    btn.textContent = a.text;
+    btn.dataset.correct = a.correct ? 'true' : 'false';
+    btn.addEventListener('click', () => selectAnswer(btn));
+    li.appendChild(btn);
+    answersEl.appendChild(li);
+  });
+
+  // Reiniciar timer de pregunta
+  stopQuestionTimer();
+  startQuestionTimer(() => {
+    // Tiempo de pregunta agotado -> lo contamos como fallo (-1)
+    STATE.score -= 1;
+    updateScore();
+    // Marcar visualmente todas como deshabilitadas y destacar la correcta
+    revealCorrect();
+    // Pasar a siguiente pregunta tras una breve pausa
+    setTimeout(nextQuestion, 800);
+  });
+}
+
+function selectAnswer(btn) {
+  // Desactivar múltiples pulsaciones
+  $$('.answer').forEach(b => b.classList.add('disabled'));
+  stopQuestionTimer();
+
+  const correct = btn.dataset.correct === 'true';
+  if (correct) {
+    btn.classList.add('correct');
+    STATE.score += 2;
+  } else {
+    btn.classList.add('wrong');
+    STATE.score -= 1;
+    // Resaltar la correcta también
+    revealCorrect();
+  }
+  updateScore();
+
+  setTimeout(nextQuestion, 700);
+}
+
+function revealCorrect() {
+  const correctBtn = $$('.answer').find(b => b.dataset.correct === 'true');
+  if (correctBtn) correctBtn.classList.add('correct');
+}
+
+function updateScore() {
+  scoreEl.textContent = STATE.score;
+}
+
+function nextQuestion() {
+  STATE.currentQ += 1;
+  if (STATE.currentQ >= STATE.questions.length) {
+    endGame();
+  } else {
+    loadQuestion(STATE.currentQ);
+  }
+}
+
+// ============ Fin de partida y ranking local ============
+function endGame() {
+  // Detener timers
+  if (STATE.timers.totalId) clearInterval(STATE.timers.totalId);
+  stopQuestionTimer();
+
+  // Mostrar resultado
+  finalScoreEl.textContent = STATE.score;
+  show(screenEnd);
+  renderRanking();
+}
+
+function resetGame() {
+  STATE.totalTime = 120;
+  STATE.perQuestionTime = 10;
+  STATE.score = 0;
+  STATE.currentQ = 0;
+  updateScore();
+  timeQEl.textContent = toMMSS(STATE.perQuestionTime);
+  timeTotEl.textContent = toMMSS(STATE.totalTime);
+}
+
+function renderRanking() {
+  const list = getRanking();
+  rankingList.innerHTML = '';
+  list.slice(0, 10).forEach((item, idx) => {
+    const li = document.createElement('li');
+    li.textContent = `${idx + 1}. ${item.name} — ${item.score}`;
+    rankingList.appendChild(li);
+  });
+}
+
+function getRanking() {
+  try {
+    const raw = localStorage.getItem('quizRanking');
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr.sort((a,b) => b.score - a.score) : [];
+  } catch { return []; }
+}
+
+function saveRanking(name, score) {
+  const list = getRanking();
+  list.push({ name, score, at: Date.now() });
+  localStorage.setItem('quizRanking', JSON.stringify(list));
+}
+
+// ============ Eventos UI ============
+$('#btn-start').addEventListener('click', () => {
+  // Ir a la pantalla de preguntas
+  show(screenQuestion);
+  resetGame();
+  startTotalTimer();
+  loadQuestion(0);
+});
+
+$('#btn-restart').addEventListener('click', () => {
+  show(screenCover);
+  renderCoverFromPDF();
+});
+
+saveForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const name = $('#username').value.trim() || 'Usuario';
+  saveRanking(name, STATE.score);
+  renderRanking();
+});
+
+// ============ Inicio ============
+window.addEventListener('resize', () => {
+  // re-render de la portada para mantener nitidez al rotar/cambiar ancho
+  if (!screenCover.hidden) renderCoverFromPDF();
+});
+
+window.addEventListener('DOMContentLoaded', () => {
+  show(screenCover);
+  renderCoverFromPDF();
+});
+```
 
